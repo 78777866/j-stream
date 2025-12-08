@@ -1,0 +1,40 @@
+{
+  "name": "NEON - Premium Streaming Platform",
+  "short_name": "NEON",
+  "description": "A modern streaming platform featuring movies, TV shows, and anime content with high-quality streaming experience.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#0a84ff",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en",
+  "categories": [
+    "entertainment",
+    "streaming",
+    "movies",
+    "tv"
+  ],
+  "icons": [
+    {
+      "src": "/images/logo.png?v=3",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/images/logo.png?v=3",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/images/hero.jpg",
+      "sizes": "1280x720",
+      "type": "image/jpeg",
+      "form_factor": "wide"
+    }
+  ]
+}

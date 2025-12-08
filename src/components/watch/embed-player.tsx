@@ -1,0 +1,294 @@
+'use client';
+import React from 'react';
+import Loading from '../ui/loading';
+import { useRouter } from 'next/navigation';
+import { MediaType, type IEpisode, type ISeason, type Show } from '@/types';
+import MovieService from '@/services/MovieService';
+import { type AxiosResponse } from 'axios';
+import Season from '../season';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { supabase } from '@/lib/supabase';
+import { useAuthStore } from '@/stores/auth';
+import { getNameFromShow } from '@/lib/utils';
+
+interface EmbedPlayerProps {
+  url?: string;
+  movieId?: string;
+  mediaType?: MediaType;
+}
+
+const SERVERS = [
+  { name: 'VidSrc 1', domain: 'vidsrc.cc' },
+  { name: 'VidSrc 2', domain: 'vidsrc-embed.ru' },
+  { name: 'VidSrc 3', domain: 'vidsrc-embed.su' },
+  { name: 'VidSrc 4', domain: 'vidsrcme.su' },
+  { name: 'VidSrc 5', domain: 'vsrc.su' },
+];
+
+function EmbedPlayer(props: EmbedPlayerProps) {
+  const router = useRouter();
+  const { user } = useAuthStore();
+
+  const [seasons, setSeasons] = React.useState<ISeason[] | null>(null);
+  const [selectedServer, setSelectedServer] = React.useState(SERVERS[0]);
+  const [currentEpisode, setCurrentEpisode] = React.useState<IEpisode | null>(null);
+  const [showData, setShowData] = React.useState<Show | null>(null);
+
+  React.useEffect(() => {
+    // Initial load handling
+    if (props.mediaType === MediaType.ANIME || props.mediaType === MediaType.TV) {
+      // Wait for season data
+    } else {
+      // Movie
+      if (props.movieId) {
+        void handleMovieData(props.movieId);
+      }
+      updateIframeUrl();
+    }
+
+    const { current } = iframeRef;
+    const iframe: HTMLIFrameElement | null = current;
+    iframe?.addEventListener('load', handleIframeLoaded);
+    return () => {
+      iframe?.removeEventListener('load', handleIframeLoaded);
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (!props.movieId) {
+      return;
+    }
+
+    if (props.mediaType === MediaType.ANIME || props.mediaType === MediaType.TV) {
+      void handleShowData(props.movieId);
+    } else {
+      // Re-update for movie if server changes
+      updateIframeUrl();
+    }
+  }, [props.movieId, props.mediaType, selectedServer]);
+
+  // Update URL when episode changes (for TV/Anime)
+  React.useEffect(() => {
+    if (currentEpisode) {
+      updateIframeUrl();
+    }
+  }, [currentEpisode, selectedServer]);
+
+  // Update Continue Watching
+  React.useEffect(() => {
+    if (user && showData) {
+      void updateContinueWatching();
+    }
+  }, [user, showData, currentEpisode, props.mediaType, props.movieId]);
+
+  const loadingRef = React.useRef<HTMLDivElement>(null);
+  const iframeRef = React.useRef<HTMLIFrameElement>(null);
+
+  const handleChangeEpisode = (episode: IEpisode): void => {
+    setCurrentEpisode(episode);
+  };
+
+  const updateContinueWatching = async () => {
+    if (!user || !showData || !props.movieId) return;
+
+    const title = getNameFromShow(showData);
+    const poster_path = showData.poster_path || showData.backdrop_path;
+    const id = props.movieId.replace('t-', '');
+
+    const data = {
+      user_id: user.id,
+      tmdb_id: id,
+      media_type: props.mediaType,
+      season_number: currentEpisode?.season_number ?? null,
+      episode_number: currentEpisode?.episode_number ?? null,
+      title,
+      poster_path,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from('continue_watching')
+      .upsert(data, { onConflict: 'user_id, tmdb_id' });
+
+    if (error) {
+      console.error('Error updating continue watching:', error);
+    }
+  };
+
+  const handleMovieData = async (movieId: string) => {
+    const id = Number(movieId.replace('t-', ''));
+    try {
+      const response: AxiosResponse<Show> = await MovieService.findMovie(id);
+      setShowData(response.data);
+    } catch (error) {
+      console.error('Error fetching movie data:', error);
+    }
+  };
+
+  const handleShowData = async (movieId: string) => {
+    const id = Number(movieId.replace('t-', ''));
+    // Use findTvSeries for both TV and Anime as they share structure in TMDB/Service
+    const response: AxiosResponse<Show> = await MovieService.findTvSeries(id);
+    const { data } = response;
+    setShowData(data); // Set show data
+
+    if (!data?.seasons?.length) {
+      return;
+    }
+    const seasons = data.seasons.filter(
+      (season: ISeason) => season.season_number,
+    );
+    const promises = seasons.map(async (season: ISeason) => {
+      return MovieService.getSeasons(id, season.season_number);
+    });
+
+    const seasonWithEpisodes = await Promise.all(promises);
+    const resolvedSeasons = seasonWithEpisodes.map((res: AxiosResponse<ISeason>) => res.data);
+    setSeasons(resolvedSeasons);
+
+    // Auto-select first episode if not set
+    if (!currentEpisode && resolvedSeasons.length > 0 && resolvedSeasons[0].episodes.length > 0) {
+      setCurrentEpisode(resolvedSeasons[0].episodes[0]);
+    }
+  };
+
+  const updateIframeUrl = () => {
+    if (!iframeRef.current || !props.movieId) return;
+
+    const id = props.movieId.replace('t-', '');
+    let url = '';
+
+    if (selectedServer.domain === 'vidsrc.cc') {
+      // Original logic for vidsrc.cc
+      if (props.mediaType === MediaType.MOVIE) {
+        url = `https://vidsrc.cc/v2/embed/movie/${id}`;
+      } else if (props.mediaType === MediaType.TV) {
+        if (currentEpisode) {
+          url = `https://vidsrc.cc/v2/embed/tv/${id}/${currentEpisode.season_number}/${currentEpisode.episode_number}`;
+        } else {
+          url = `https://vidsrc.cc/v2/embed/tv/${id}`;
+        }
+      } else if (props.mediaType === MediaType.ANIME) {
+        if (currentEpisode) {
+          url = `https://vidsrc.cc/v2/embed/anime/tmdb${id}/${currentEpisode.episode_number}/sub`;
+        } else {
+          // Default to ep 1
+          url = `https://vidsrc.cc/v2/embed/anime/tmdb${id}/1/sub`;
+        }
+      }
+    } else {
+      // New providers (vidsrc-embed.ru etc)
+      const baseUrl = `https://${selectedServer.domain}/embed`;
+
+      if (props.mediaType === MediaType.MOVIE) {
+        url = `${baseUrl}/movie?tmdb=${id}`;
+      } else if (props.mediaType === MediaType.TV || props.mediaType === MediaType.ANIME) {
+        if (currentEpisode) {
+          url = `${baseUrl}/tv?tmdb=${id}&season=${currentEpisode.season_number}&episode=${currentEpisode.episode_number}`;
+        } else {
+          // Fallback if no episode selected yet
+          url = `${baseUrl}/tv?tmdb=${id}&season=1&episode=1`;
+        }
+      }
+    }
+
+    if (url) {
+      handleSetIframeUrl(url);
+    }
+  };
+
+  const handleSetIframeUrl = (url: string): void => {
+    if (!iframeRef.current) {
+      return;
+    }
+    // Avoid reloading if same URL
+    if (iframeRef.current.src === url) return;
+
+    iframeRef.current.src = url;
+    const { current } = iframeRef;
+    const iframe: HTMLIFrameElement | null = current;
+    iframe?.addEventListener('load', handleIframeLoaded);
+    if (loadingRef.current) loadingRef.current.style.display = 'flex';
+  };
+
+  const handleIframeLoaded = () => {
+    if (!iframeRef.current) {
+      return;
+    }
+    const iframe: HTMLIFrameElement = iframeRef.current;
+    if (iframe) {
+      iframe.style.opacity = '1';
+      iframe.removeEventListener('load', handleIframeLoaded);
+      if (loadingRef.current) loadingRef.current.style.display = 'none';
+    }
+  };
+
+  return (
+    <div
+      style={{
+        width: '100%',
+        height: '100%',
+        position: 'absolute',
+        backgroundColor: '#000',
+      }}>
+      {seasons && (
+        <Season seasons={seasons ?? []} onChangeEpisode={handleChangeEpisode} />
+      )}
+      <div className="header-top absolute left-0 right-0 top-8 z-[2] flex h-fit w-fit items-center justify-between gap-x-5 px-4 md:h-20 md:gap-x-8 md:px-10 lg:h-24">
+        <div className="flex flex-1 items-center gap-x-5 md:gap-x-8">
+          <svg
+            className="h-10 w-10 flex-shrink-0 cursor-pointer transition hover:scale-125"
+            stroke="#fff"
+            fill="#fff"
+            strokeWidth="0"
+            viewBox="0 0 16 16"
+            height="16px"
+            width="16px"
+            xmlns="http://www.w3.org/2000/svg"
+            onClick={() => router.back()}>
+            <path
+              fillRule="evenodd"
+              d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8z"></path>
+          </svg>
+
+          <div className="flex items-center gap-2">
+            <Select
+              value={selectedServer.name}
+              onValueChange={(value: string) => {
+                const server = SERVERS.find((s) => s.name === value);
+                if (server) setSelectedServer(server);
+              }}
+            >
+              <SelectTrigger className="w-[140px] bg-black/50 text-white border-white/20 backdrop-blur-sm">
+                <SelectValue placeholder="Select Server" />
+              </SelectTrigger>
+              <SelectContent>
+                {SERVERS.map((server) => (
+                  <SelectItem key={server.name} value={server.name}>
+                    {server.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+        </div>
+      </div>
+      <div
+        ref={loadingRef}
+        className="absolute z-[1] flex h-full w-full items-center justify-center">
+        <Loading />
+      </div>
+      <iframe
+        width="100%"
+        height="100%"
+        allowFullScreen
+        ref={iframeRef}
+        style={{ opacity: 0 }}
+        referrerPolicy="no-referrer-when-downgrade"
+      />
+    </div>
+  );
+}
+
+export default EmbedPlayer;
