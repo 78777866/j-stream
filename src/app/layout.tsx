@@ -69,13 +69,13 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: '/favicon.ico',
-    apple: '/images/logo.png?v=3',
+    apple: '/images/icon-192.png',
   },
   manifest: '/manifest.json',
   other: {
     referrer: 'no-referrer-when-downgrade',
     'apple-mobile-web-app-capable': 'yes',
-    'apple-mobile-web-app-status-bar-style': 'default',
+    'apple-mobile-web-app-status-bar-style': 'black-translucent',
     'apple-mobile-web-app-title': 'NEON',
     'mobile-web-app-capable': 'yes',
   },
