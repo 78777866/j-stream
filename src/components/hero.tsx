@@ -25,6 +25,10 @@ const Hero = ({ randomShow }: HeroProps) => {
     };
   }, []);
 
+  // stores
+  const modalStore = useModalStore();
+  const searchStore = useSearchStore();
+
   const handlePopstateEvent = () => {
     const pathname = window.location.pathname;
     if (!/\d/.test(pathname)) {
@@ -51,8 +55,8 @@ const Hero = ({ randomShow }: HeroProps) => {
   };
 
   // stores
-  const modalStore = useModalStore();
-  const searchStore = useSearchStore();
+  // const modalStore = useModalStore(); // Moved up
+  // const searchStore = useSearchStore(); // Moved up
 
   if (searchStore.query.length > 0) {
     return null;
@@ -97,7 +101,9 @@ const Hero = ({ randomShow }: HeroProps) => {
                     {Math.round(randomShow?.vote_average * 10) ?? '-'}% Match
                   </p>
                   {/* <p className="text-gray-300">{randomShow?.release_date ?? "-"}</p> */}
-                  <p className="hidden md:block">{randomShow?.release_date ?? '-'}</p>
+                  <p className="hidden md:block">
+                    {randomShow?.release_date ?? '-'}
+                  </p>
                 </div>
                 {/* <p className="line-clamp-4 text-sm text-gray-300 md:text-base"> */}
                 <p className="hidden text-[1.2vw] sm:line-clamp-3">
