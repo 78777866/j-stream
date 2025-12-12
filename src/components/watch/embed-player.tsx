@@ -6,7 +6,13 @@ import { MediaType, type IEpisode, type ISeason, type Show } from '@/types';
 import MovieService from '@/services/MovieService';
 import { type AxiosResponse } from 'axios';
 import Season from '../season';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../ui/select';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/auth';
 import { getNameFromShow } from '@/lib/utils';
@@ -31,12 +37,17 @@ function EmbedPlayer(props: EmbedPlayerProps) {
 
   const [seasons, setSeasons] = React.useState<ISeason[] | null>(null);
   const [selectedServer, setSelectedServer] = React.useState(SERVERS[0]);
-  const [currentEpisode, setCurrentEpisode] = React.useState<IEpisode | null>(null);
+  const [currentEpisode, setCurrentEpisode] = React.useState<IEpisode | null>(
+    null,
+  );
   const [showData, setShowData] = React.useState<Show | null>(null);
 
   React.useEffect(() => {
     // Initial load handling
-    if (props.mediaType === MediaType.ANIME || props.mediaType === MediaType.TV) {
+    if (
+      props.mediaType === MediaType.ANIME ||
+      props.mediaType === MediaType.TV
+    ) {
       // Wait for season data
     } else {
       // Movie
@@ -59,7 +70,10 @@ function EmbedPlayer(props: EmbedPlayerProps) {
       return;
     }
 
-    if (props.mediaType === MediaType.ANIME || props.mediaType === MediaType.TV) {
+    if (
+      props.mediaType === MediaType.ANIME ||
+      props.mediaType === MediaType.TV
+    ) {
       void handleShowData(props.movieId);
     } else {
       // Re-update for movie if server changes
@@ -143,11 +157,17 @@ function EmbedPlayer(props: EmbedPlayerProps) {
     });
 
     const seasonWithEpisodes = await Promise.all(promises);
-    const resolvedSeasons = seasonWithEpisodes.map((res: AxiosResponse<ISeason>) => res.data);
+    const resolvedSeasons = seasonWithEpisodes.map(
+      (res: AxiosResponse<ISeason>) => res.data,
+    );
     setSeasons(resolvedSeasons);
 
     // Auto-select first episode if not set
-    if (!currentEpisode && resolvedSeasons.length > 0 && resolvedSeasons[0].episodes.length > 0) {
+    if (
+      !currentEpisode &&
+      resolvedSeasons.length > 0 &&
+      resolvedSeasons[0].episodes.length > 0
+    ) {
       setCurrentEpisode(resolvedSeasons[0].episodes[0]);
     }
   };
@@ -182,7 +202,10 @@ function EmbedPlayer(props: EmbedPlayerProps) {
 
       if (props.mediaType === MediaType.MOVIE) {
         url = `${baseUrl}/movie?tmdb=${id}`;
-      } else if (props.mediaType === MediaType.TV || props.mediaType === MediaType.ANIME) {
+      } else if (
+        props.mediaType === MediaType.TV ||
+        props.mediaType === MediaType.ANIME
+      ) {
         if (currentEpisode) {
           url = `${baseUrl}/tv?tmdb=${id}&season=${currentEpisode.season_number}&episode=${currentEpisode.episode_number}`;
         } else {
@@ -257,9 +280,8 @@ function EmbedPlayer(props: EmbedPlayerProps) {
               onValueChange={(value: string) => {
                 const server = SERVERS.find((s) => s.name === value);
                 if (server) setSelectedServer(server);
-              }}
-            >
-              <SelectTrigger className="w-[140px] bg-black/50 text-white border-white/20 backdrop-blur-sm">
+              }}>
+              <SelectTrigger className="w-[140px] border-white/20 bg-black/50 text-white backdrop-blur-sm">
                 <SelectValue placeholder="Select Server" />
               </SelectTrigger>
               <SelectContent>
@@ -271,7 +293,6 @@ function EmbedPlayer(props: EmbedPlayerProps) {
               </SelectContent>
             </Select>
           </div>
-
         </div>
       </div>
       <div

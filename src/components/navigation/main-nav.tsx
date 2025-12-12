@@ -132,25 +132,22 @@ export function MainNav({ items }: MainNavProps) {
         className={cn(
           'fixed top-0 z-40 flex h-12 w-full items-center justify-between px-[4vw] transition-all duration-500 md:h-16',
           isScrolled
-            ? 'bg-background/80 backdrop-blur-xl border-b border-white/10 shadow-lg'
+            ? 'border-b border-white/10 bg-background/80 shadow-lg backdrop-blur-xl'
             : 'bg-gradient-to-b from-background/40 to-transparent backdrop-blur-md',
-        )}
-      >
+        )}>
         <div className="flex items-center gap-6 md:gap-10">
           {/* Hamburger for mobile */}
           <button
-            className="md:hidden flex items-center justify-center p-2"
+            className="flex items-center justify-center p-2 md:hidden"
             aria-label="Open menu"
-            onClick={() => setDrawerOpen(true)}
-          >
+            onClick={() => setDrawerOpen(true)}>
             <Icons.menu className="h-6 w-6" />
           </button>
           {/* Logo (desktop) */}
           <Link
             href="/"
             className="hidden md:block"
-            onClick={() => handleChangeStatusOpen(false)}
-          >
+            onClick={() => handleChangeStatusOpen(false)}>
             <div className="flex items-center space-x-2">
               <Icons.logo className="h-6 w-6" aria-hidden="true" />
               <span className="inline-block font-bold">{siteConfig.name}</span>
@@ -171,8 +168,7 @@ export function MainNav({ items }: MainNavProps) {
                         path === item.href && 'font-bold text-foreground',
                         item.disabled && 'cursor-not-allowed opacity-80',
                       )}
-                      onClick={() => handleChangeStatusOpen(false)}
-                    >
+                      onClick={() => handleChangeStatusOpen(false)}>
                       {item.title}
                     </Link>
                   ),
@@ -193,17 +189,15 @@ export function MainNav({ items }: MainNavProps) {
             rel="noreferrer"
             target="_blank"
             href={siteConfig.links.github}
-            className={cn(path === '/' ? 'flex' : 'hidden')}
-          >
+            className={cn(path === '/' ? 'flex' : 'hidden')}>
             <Icons.gitHub className="h-5 w-5 hover:bg-transparent" />
           </Link>
           <Button
             variant="ghost"
             size="sm"
             onClick={handleSignOut}
-            className="hidden md:flex"
-          >
-            <Icons.logout className="h-4 w-4 mr-2" />
+            className="hidden md:flex">
+            <Icons.logout className="mr-2 h-4 w-4" />
             Sign Out
           </Button>
           <ThemeToggle />
@@ -219,21 +213,23 @@ export function MainNav({ items }: MainNavProps) {
             aria-label="Close menu overlay"
           />
           {/* Drawer */}
-          <aside className="fixed inset-y-0 left-0 z-50 w-4/5 max-w-xs bg-background/90 backdrop-blur-2xl border-r border-white/10 shadow-2xl flex flex-col md:hidden animate-in slide-in-from-left-80">
-            <div className="flex items-center justify-between p-4 border-b border-white/10">
-              <Link href="/" onClick={() => setDrawerOpen(false)} className="flex items-center space-x-2">
+          <aside className="fixed inset-y-0 left-0 z-50 flex w-4/5 max-w-xs flex-col border-r border-white/10 bg-background/90 shadow-2xl backdrop-blur-2xl animate-in slide-in-from-left-80 md:hidden">
+            <div className="flex items-center justify-between border-b border-white/10 p-4">
+              <Link
+                href="/"
+                onClick={() => setDrawerOpen(false)}
+                className="flex items-center space-x-2">
                 <Icons.logo className="h-6 w-6" />
-                <span className="font-bold text-lg">{siteConfig.name}</span>
+                <span className="text-lg font-bold">{siteConfig.name}</span>
               </Link>
               <button
                 className="p-2"
                 aria-label="Close menu"
-                onClick={() => setDrawerOpen(false)}
-              >
+                onClick={() => setDrawerOpen(false)}>
                 <Icons.close className="h-6 w-6" />
               </button>
             </div>
-            <nav className="flex-1 overflow-y-auto p-4 space-y-2">
+            <nav className="flex-1 space-y-2 overflow-y-auto p-4">
               {items?.map((item, index) => (
                 <Link
                   key={index}
@@ -245,8 +241,7 @@ export function MainNav({ items }: MainNavProps) {
                       : 'text-foreground/80 hover:bg-accent hover:text-foreground',
                     item.disabled && 'pointer-events-none opacity-60',
                   )}
-                  onClick={() => setDrawerOpen(false)}
-                >
+                  onClick={() => setDrawerOpen(false)}>
                   {item.title}
                 </Link>
               ))}
@@ -255,8 +250,7 @@ export function MainNav({ items }: MainNavProps) {
                   await handleSignOut();
                   setDrawerOpen(false);
                 }}
-                className="mt-4 flex w-full items-center gap-2 rounded px-3 py-2 text-base font-medium text-destructive hover:bg-destructive/10"
-              >
+                className="mt-4 flex w-full items-center gap-2 rounded px-3 py-2 text-base font-medium text-destructive hover:bg-destructive/10">
                 <Icons.logout className="h-5 w-5" />
                 Sign Out
               </button>
