@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { type Show, type NavItem } from '@/types';
+import { type NavItem, type Show } from '@/types';
 import Link from 'next/link';
 import {
   cn,
@@ -11,14 +11,6 @@ import {
 } from '@/lib/utils';
 import { siteConfig } from '@/configs/site';
 import { Icons } from '@/components/icons';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { usePathname, useRouter } from 'next/navigation';
 import { useSearchStore } from '@/stores/search';
@@ -26,7 +18,6 @@ import { useAuthStore } from '@/stores/auth';
 import { ModeToggle as ThemeToggle } from '@/components/theme-toggle';
 import { DebouncedInput } from '@/components/debounced-input';
 import MovieService from '@/services/MovieService';
-import { useState } from 'react';
 
 interface MainNavProps {
   items?: NavItem[];
@@ -43,7 +34,7 @@ export function MainNav({ items }: MainNavProps) {
   const searchStore = useSearchStore();
   const { signOut } = useAuthStore();
   const [isScrolled, setIsScrolled] = React.useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = React.useState(false);
 
   React.useEffect(() => {
     window.addEventListener('popstate', handlePopstateEvent, false);
@@ -91,9 +82,9 @@ export function MainNav({ items }: MainNavProps) {
     }
 
     if (getSearchValue('q')?.trim()?.length) {
-      window.history.replaceState(null, '', `search?q=${value}`);
+      window.history.replaceState(null, '', `/search?q=${value}`);
     } else {
-      window.history.pushState(null, '', `search?q=${value}`);
+      window.history.pushState(null, '', `/search?q=${value}`);
     }
 
     searchStore.setQuery(value);
@@ -110,11 +101,13 @@ export function MainNav({ items }: MainNavProps) {
   // change background color on scroll
   React.useEffect(() => {
     const changeBgColor = () => {
-      window.scrollY > 0 ? setIsScrolled(true) : setIsScrolled(false);
+      setIsScrolled(window.scrollY > 0);
     };
+
+    changeBgColor();
     window.addEventListener('scroll', changeBgColor);
     return () => window.removeEventListener('scroll', changeBgColor);
-  }, [isScrolled]);
+  }, []);
 
   const handleChangeStatusOpen = (value: boolean): void => {
     searchStore.setOpen(value);
@@ -124,6 +117,14 @@ export function MainNav({ items }: MainNavProps) {
   const handleSignOut = async () => {
     await signOut();
     router.push('/login');
+  };
+
+  const handleSignOutClick = () => {
+    void handleSignOut();
+  };
+
+  const handleMobileSignOutClick = () => {
+    void handleSignOut().finally(() => setDrawerOpen(false));
   };
 
   return (
@@ -189,18 +190,11 @@ export function MainNav({ items }: MainNavProps) {
             onChangeStatusOpen={handleChangeStatusOpen}
             containerClassName={cn(path === '/' ? 'hidden' : 'flex')}
           />
-          <Link
-            rel="noreferrer"
-            target="_blank"
-            href={siteConfig.links.github}
-            className={cn(path === '/' ? 'flex' : 'hidden')}
-          >
-            <Icons.gitHub className="h-5 w-5 hover:bg-transparent" />
-          </Link>
+
           <Button
             variant="ghost"
             size="sm"
-            onClick={handleSignOut}
+            onClick={handleSignOutClick}
             className="hidden md:flex"
           >
             <Icons.logout className="h-4 w-4 mr-2" />
@@ -237,7 +231,7 @@ export function MainNav({ items }: MainNavProps) {
               {items?.map((item, index) => (
                 <Link
                   key={index}
-                  href={item.href || '#'}
+                  href={item.href ?? '#'}
                   className={cn(
                     'block rounded px-3 py-2 text-base font-medium',
                     path === item.href
@@ -251,10 +245,7 @@ export function MainNav({ items }: MainNavProps) {
                 </Link>
               ))}
               <button
-                onClick={async () => {
-                  await handleSignOut();
-                  setDrawerOpen(false);
-                }}
+                onClick={handleMobileSignOutClick}
                 className="mt-4 flex w-full items-center gap-2 rounded px-3 py-2 text-base font-medium text-destructive hover:bg-destructive/10"
               >
                 <Icons.logout className="h-5 w-5" />
