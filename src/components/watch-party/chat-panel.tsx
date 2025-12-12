@@ -7,7 +7,7 @@ import { WatchPartyService } from '@/services/WatchPartyService';
 import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
-import { Database } from '@/types/supabase';
+import type { Database } from '@/types/supabase';
 
 type WatchPartyMessage = Database['public']['Tables']['watch_party_messages']['Row'] & {
     user_email?: string;
@@ -17,6 +17,13 @@ interface ChatPanelProps {
     className?: string;
 }
 
+type PresenceState = {
+    user_id?: string;
+    user_email?: string;
+    guest_name?: string;
+    online_at: string;
+};
+
 export default function ChatPanel({ className }: ChatPanelProps) {
     const { party, messages, addMessage, setMessages, guestName, setGuestName } = useWatchPartyStore();
     const { user } = useAuthStore();
@@ -24,30 +31,38 @@ export default function ChatPanel({ className }: ChatPanelProps) {
     const [tempGuestName, setTempGuestName] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const [profiles, setProfiles] = useState<Record<string, { email: string }>>({});
+    const [onlineUsers, setOnlineUsers] = useState<PresenceState[]>([]);
+    const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
 
-    // Subscribe to new messages
+    // Subscribe to new messages and presence
     useEffect(() => {
         if (!party) return;
 
         // Load initial messages
         const loadMessages = async () => {
             try {
-                const msgs = await WatchPartyService.getMessages(party.id);
-                const userIds = Array.from(new Set(msgs?.map(m => m.user_id).filter((id): id is string => !!id) || []));
-                const profilesData = await WatchPartyService.getProfiles(userIds);
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const msgs = (await WatchPartyService.getMessages(party.id)) as unknown as WatchPartyMessage[];
+                
+                const userIds = Array.from(new Set(msgs?.map((m) => m.user_id).filter((id): id is string => !!id) || []));
+                
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const profilesData = (await WatchPartyService.getProfiles(userIds)) as any[];
 
                 const profileMap: Record<string, { email: string }> = {};
-                profilesData?.forEach(p => {
-                    profileMap[p.id] = { email: p.email || 'Unknown' };
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                profilesData?.forEach((p: any) => {
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
+                    profileMap[p.id] = { email: p.email ?? 'Unknown' };
                 });
                 setProfiles(prev => ({ ...prev, ...profileMap }));
 
-                const augmentedMessages = msgs?.map(m => ({
+                const augmentedMessages = msgs?.map((m) => ({
                     ...m,
-                    user_email: m.user_id ? (profileMap[m.user_id]?.email || 'User') : (m.guest_name || 'Guest')
+                    user_email: m.user_id ? (profileMap[m.user_id]?.email ?? 'User') : (m.guest_name ?? 'Guest')
                 })) || [];
 
-                setMessages(augmentedMessages as WatchPartyMessage[]);
+                setMessages(augmentedMessages);
             } catch (error) {
                 console.error(error);
             }
@@ -66,37 +81,88 @@ export default function ChatPanel({ className }: ChatPanelProps) {
                     table: 'watch_party_messages',
                     filter: `party_id=eq.${party.id}`,
                 },
-                async (payload) => {
-                    const newMsg = payload.new as WatchPartyMessage;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (payload: any) => {
+                    void (async () => {
+                        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+                        const newMsg = payload.new as WatchPartyMessage;
 
-                    if (newMsg.user_id) {
-                        if (!profiles[newMsg.user_id]) {
-                            const [profile] = await WatchPartyService.getProfiles([newMsg.user_id]) || [];
-                            if (profile) {
-                                setProfiles(prev => ({ ...prev, [profile.id]: { email: profile.email || 'Unknown' } }));
-                                newMsg.user_email = profile.email || 'User';
+                        if (newMsg.user_id) {
+                            if (!profiles[newMsg.user_id]) {
+                                const [profile] = await WatchPartyService.getProfiles([newMsg.user_id]) || [];
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                if (profile) {
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
+                                    setProfiles(prev => ({ ...prev, [(profile as any).id]: { email: (profile as any).email ?? 'Unknown' } }));
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
+                                    newMsg.user_email = (profile as any).email ?? 'User';
+                                }
+                            } else {
+                                newMsg.user_email = profiles[newMsg.user_id].email;
                             }
                         } else {
-                            newMsg.user_email = profiles[newMsg.user_id].email;
+                            newMsg.user_email = newMsg.guest_name ?? 'Guest';
                         }
-                    } else {
-                        newMsg.user_email = newMsg.guest_name || 'Guest';
-                    }
 
-                    addMessage(newMsg);
+                        addMessage(newMsg);
+                    })();
                 }
             )
-            .subscribe();
+            .on('presence', { event: 'sync' }, () => {
+                const newState = channel.presenceState<PresenceState>();
+                const users: PresenceState[] = [];
+                for (const key in newState) {
+                    users.push(...newState[key]);
+                }
+                setOnlineUsers(users);
+            })
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .on('broadcast', { event: 'typing' }, (payload: any) => {
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+                const username = payload.payload.username as string;
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-enum-comparison
+                if (payload.payload.user_id === user?.id && payload.payload.username === guestName) return; // Ignore self
+
+                setTypingUsers(prev => {
+                    const newSet = new Set(prev);
+                    newSet.add(username);
+                    return newSet;
+                });
+
+                // Clear after 3 seconds
+                setTimeout(() => {
+                    setTypingUsers(prev => {
+                        const newSet = new Set(prev);
+                        newSet.delete(username);
+                        return newSet;
+                    });
+                }, 3000);
+            })
+            .subscribe((status) => {
+                void (async () => {
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-enum-comparison
+                    if (status === 'SUBSCRIBED') {
+                        if (user || guestName) {
+                            await channel.track({
+                                user_id: user?.id,
+                                user_email: user?.email,
+                                guest_name: guestName,
+                                online_at: new Date().toISOString(),
+                            });
+                        }
+                    }
+                })();
+            });
 
         return () => {
             void supabase.removeChannel(channel);
         };
-    }, [party?.id]);
+    }, [party?.id, user, guestName]); // Re-subscribe if user identity changes
 
     // Auto-scroll to bottom
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
+    }, [messages, typingUsers]);
 
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -122,21 +188,42 @@ export default function ChatPanel({ className }: ChatPanelProps) {
             setGuestName(tempGuestName.trim());
         }
     };
+    
+    // Better typing handler
+    const lastTypedRef = useRef<number>(0);
+    const onTyping = async () => {
+        const now = Date.now();
+        if (now - lastTypedRef.current > 2000) {
+            lastTypedRef.current = now;
+            const channel = supabase.channel(`party_chat:${party!.id}`);
+            await channel.send({
+                type: 'broadcast',
+                event: 'typing',
+                payload: {
+                    username: user?.email?.split('@')[0] ?? guestName ?? 'Guest',
+                    user_id: user?.id
+                }
+            });
+        }
+    };
 
     if (!party) return null;
 
     return (
         <div className={cn("flex flex-col h-full bg-black/80 backdrop-blur-md border-l border-white/10", className)}>
             <div className="flex items-center justify-between p-4 border-b border-white/10">
-                <div className="flex items-center gap-2">
-                    <Users className="w-4 h-4 text-neon-cyan" />
-                    <span className="font-bold text-white">Watch Party</span>
+                <div className="flex flex-col">
+                    <div className="flex items-center gap-2">
+                        <Users className="w-4 h-4 text-neon-cyan" />
+                        <span className="font-bold text-white">Watch Party</span>
+                    </div>
+                    <span className="text-xs text-white/50 ml-6">{onlineUsers.length} online</span>
                 </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {messages.map((msg) => {
-                    const isMe = (user && msg.user_id === user.id) || (!user && msg.guest_name === guestName);
+                    const isMe = (!!user && msg.user_id === user.id) || (!user && msg.guest_name === guestName);
                     return (
                         <div
                             key={msg.id}
@@ -146,7 +233,7 @@ export default function ChatPanel({ className }: ChatPanelProps) {
                             )}
                         >
                             <span className="text-xs text-white/50 mb-1">
-                                {isMe ? 'You' : msg.user_email?.split('@')[0] || 'User'}
+                                {isMe ? 'You' : msg.user_email?.split('@')[0] ?? 'User'}
                             </span>
                             <div
                                 className={cn(
@@ -161,16 +248,24 @@ export default function ChatPanel({ className }: ChatPanelProps) {
                         </div>
                     );
                 })}
+                {typingUsers.size > 0 && (
+                    <div className="text-xs text-neon-cyan/80 italic ml-4">
+                        {Array.from(typingUsers).join(', ')} {typingUsers.size === 1 ? 'is' : 'are'} typing...
+                    </div>
+                )}
                 <div ref={messagesEndRef} />
             </div>
 
             {user || guestName ? (
-                <form onSubmit={handleSendMessage} className="p-4 border-t border-white/10">
+                <form onSubmit={(e) => { void handleSendMessage(e); }} className="p-4 border-t border-white/10">
                     <div className="relative">
                         <input
                             type="text"
                             value={newMessage}
-                            onChange={(e) => setNewMessage(e.target.value)}
+                            onChange={(e) => {
+                                setNewMessage(e.target.value);
+                                void onTyping();
+                            }}
                             placeholder="Type a message..."
                             className="w-full bg-white/5 border border-white/10 rounded-full px-4 py-2 pr-10 text-white focus:outline-none focus:border-neon-cyan/50 transition-colors"
                         />
