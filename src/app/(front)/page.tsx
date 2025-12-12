@@ -1,5 +1,3 @@
-import { Icons } from "@/components/icons";
-import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { siteConfig } from "@/configs/site";
 import { ArrowRight } from "lucide-react";
@@ -13,17 +11,6 @@ export default function Index() {
         aria-labelledby="hero-heading"
         className="container mx-auto flex flex-col items-center justify-center gap-4 pb-8 pt-28 text-center md:pb-12 lg:py-32"
       >
-        <Link href={siteConfig.links.twitter} target="_blank" rel="noreferrer">
-          <Badge
-            aria-hidden="true"
-            className="rounded-md px-3.5 py-1.5"
-            variant="secondary"
-          >
-            <Icons.twitter className="mr-2 h-3.5 w-3.5" />
-            Follow along on Twitter
-          </Badge>
-          <span className="sr-only">Twitter</span>
-        </Link>
         <h1 className="max-w-screen-lg text-center font-heading text-3xl sm:text-5xl md:text-6xl lg:text-7xl">
           {siteConfig.name} - {siteConfig.slogan}
           {/* {siteConfig.name} - watch tv shows online, watch movies online. */}
