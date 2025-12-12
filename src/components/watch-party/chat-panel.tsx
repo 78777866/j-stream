@@ -32,6 +32,7 @@ export default function ChatPanel({ className }: ChatPanelProps) {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const [profiles, setProfiles] = useState<Record<string, { email: string }>>({});
     const [onlineUsers, setOnlineUsers] = useState<PresenceState[]>([]);
+    const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
 
     // Subscribe to new messages and presence
     useEffect(() => {
@@ -41,10 +42,9 @@ export default function ChatPanel({ className }: ChatPanelProps) {
         const loadMessages = async () => {
             try {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const msgs = await WatchPartyService.getMessages(party.id);
+                const msgs = (await WatchPartyService.getMessages(party.id)) as unknown as WatchPartyMessage[];
                 
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const userIds = Array.from(new Set(msgs?.map((m: any) => m.user_id as string).filter((id: any) => !!id) || []));
+                const userIds = Array.from(new Set(msgs?.map((m) => m.user_id).filter((id): id is string => !!id) || []));
                 
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const profilesData = (await WatchPartyService.getProfiles(userIds)) as any[];
@@ -52,19 +52,17 @@ export default function ChatPanel({ className }: ChatPanelProps) {
                 const profileMap: Record<string, { email: string }> = {};
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 profilesData?.forEach((p: any) => {
-                    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                    profileMap[p.id] = { email: p.email || 'Unknown' };
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
+                    profileMap[p.id] = { email: p.email ?? 'Unknown' };
                 });
                 setProfiles(prev => ({ ...prev, ...profileMap }));
 
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const augmentedMessages = msgs?.map((m: any) => ({
+                const augmentedMessages = msgs?.map((m) => ({
                     ...m,
-                    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
                     user_email: m.user_id ? (profileMap[m.user_id]?.email ?? 'User') : (m.guest_name ?? 'Guest')
                 })) || [];
 
-                setMessages(augmentedMessages as WatchPartyMessage[]);
+                setMessages(augmentedMessages);
             } catch (error) {
                 console.error(error);
             }
@@ -94,10 +92,10 @@ export default function ChatPanel({ className }: ChatPanelProps) {
                                 const [profile] = await WatchPartyService.getProfiles([newMsg.user_id]) || [];
                                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                 if (profile) {
-                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
-                                    setProfiles(prev => ({ ...prev, [(profile as any).id]: { email: (profile as any).email || 'Unknown' } }));
-                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
-                                    newMsg.user_email = (profile as any).email || 'User';
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
+                                    setProfiles(prev => ({ ...prev, [(profile as any).id]: { email: (profile as any).email ?? 'Unknown' } }));
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
+                                    newMsg.user_email = (profile as any).email ?? 'User';
                                 }
                             } else {
                                 newMsg.user_email = profiles[newMsg.user_id].email;
@@ -118,8 +116,31 @@ export default function ChatPanel({ className }: ChatPanelProps) {
                 }
                 setOnlineUsers(users);
             })
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .on('broadcast', { event: 'typing' }, (payload: any) => {
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+                const username = payload.payload.username as string;
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-enum-comparison
+                if (payload.payload.user_id === user?.id && payload.payload.username === guestName) return; // Ignore self
+
+                setTypingUsers(prev => {
+                    const newSet = new Set(prev);
+                    newSet.add(username);
+                    return newSet;
+                });
+
+                // Clear after 3 seconds
+                setTimeout(() => {
+                    setTypingUsers(prev => {
+                        const newSet = new Set(prev);
+                        newSet.delete(username);
+                        return newSet;
+                    });
+                }, 3000);
+            })
             .subscribe((status) => {
                 void (async () => {
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-enum-comparison
                     if (status === 'SUBSCRIBED') {
                         if (user || guestName) {
                             await channel.track({
@@ -141,7 +162,7 @@ export default function ChatPanel({ className }: ChatPanelProps) {
     // Auto-scroll to bottom
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
+    }, [messages, typingUsers]);
 
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -167,6 +188,24 @@ export default function ChatPanel({ className }: ChatPanelProps) {
             setGuestName(tempGuestName.trim());
         }
     };
+    
+    // Better typing handler
+    const lastTypedRef = useRef<number>(0);
+    const onTyping = async () => {
+        const now = Date.now();
+        if (now - lastTypedRef.current > 2000) {
+            lastTypedRef.current = now;
+            const channel = supabase.channel(`party_chat:${party!.id}`);
+            await channel.send({
+                type: 'broadcast',
+                event: 'typing',
+                payload: {
+                    username: user?.email?.split('@')[0] ?? guestName ?? 'Guest',
+                    user_id: user?.id
+                }
+            });
+        }
+    };
 
     if (!party) return null;
 
@@ -184,7 +223,7 @@ export default function ChatPanel({ className }: ChatPanelProps) {
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {messages.map((msg) => {
-                    const isMe = (user && msg.user_id === user.id) || (!user && msg.guest_name === guestName);
+                    const isMe = (!!user && msg.user_id === user.id) || (!user && msg.guest_name === guestName);
                     return (
                         <div
                             key={msg.id}
@@ -209,6 +248,11 @@ export default function ChatPanel({ className }: ChatPanelProps) {
                         </div>
                     );
                 })}
+                {typingUsers.size > 0 && (
+                    <div className="text-xs text-neon-cyan/80 italic ml-4">
+                        {Array.from(typingUsers).join(', ')} {typingUsers.size === 1 ? 'is' : 'are'} typing...
+                    </div>
+                )}
                 <div ref={messagesEndRef} />
             </div>
 
@@ -218,7 +262,10 @@ export default function ChatPanel({ className }: ChatPanelProps) {
                         <input
                             type="text"
                             value={newMessage}
-                            onChange={(e) => setNewMessage(e.target.value)}
+                            onChange={(e) => {
+                                setNewMessage(e.target.value);
+                                void onTyping();
+                            }}
                             placeholder="Type a message..."
                             className="w-full bg-white/5 border border-white/10 rounded-full px-4 py-2 pr-10 text-white focus:outline-none focus:border-neon-cyan/50 transition-colors"
                         />

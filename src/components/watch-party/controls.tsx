@@ -6,7 +6,14 @@ import { useWatchPartyStore } from '@/stores/watch-party';
 import { WatchPartyService } from '@/services/WatchPartyService';
 import { useRouter } from 'next/navigation';
 
-export default function PartyControls() {
+interface PartyControlsProps {
+    currentEpisode?: {
+        season_number: number;
+        episode_number: number;
+    } | null;
+}
+
+export default function PartyControls({ currentEpisode }: PartyControlsProps) {
     const { party, isHost } = useWatchPartyStore();
     const router = useRouter();
 
@@ -26,7 +33,10 @@ export default function PartyControls() {
 
     const handleForceSync = async () => {
         try {
-            await WatchPartyService.updatePlaybackState(party.id, {});
+            await WatchPartyService.updatePlaybackState(party.id, {
+                season_number: currentEpisode?.season_number,
+                episode_number: currentEpisode?.episode_number,
+            });
         } catch (error) {
             console.error('Failed to force sync:', error);
         }
@@ -35,13 +45,13 @@ export default function PartyControls() {
     return (
         <div className="flex items-center gap-2">
             <button
-                onClick={handleForceSync}
+                onClick={() => { void handleForceSync(); }}
                 className="p-2 rounded-full bg-black/50 text-white hover:bg-neon-cyan/20 transition-colors"
                 title="Force Sync">
                 <RefreshCw className="w-4 h-4" />
             </button>
             <button
-                onClick={handleEndParty}
+                onClick={() => { void handleEndParty(); }}
                 className="p-2 rounded-full bg-black/50 text-red-400 hover:bg-red-500/20 transition-colors"
                 title="End Party">
                 <Power className="w-4 h-4" />

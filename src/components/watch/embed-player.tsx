@@ -116,13 +116,13 @@ function EmbedPlayer(props: EmbedPlayerProps) {
 
     const initParty = async () => {
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
         const p = await WatchPartyService.joinParty(partyId);
         setParty(p as WatchParty);
 
         if (user) {
           // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-          setIsHost(user.id === (p as any).host_id);
+          setIsHost(user.id === p.host_id);
         } else {
           setIsHost(false);
         }
@@ -409,12 +409,17 @@ function EmbedPlayer(props: EmbedPlayerProps) {
               <CreatePartyModal
                 show={showData}
                 movieId={props.movieId}
-                mediaType={props.mediaType || MediaType.MOVIE}
+                mediaType={props.mediaType ?? MediaType.MOVIE}
                 currentEpisode={currentEpisode ? { season_number: currentEpisode.season_number, episode_number: currentEpisode.episode_number } : undefined}
               />
             )}
 
-            <PartyControls />
+            <PartyControls 
+              currentEpisode={currentEpisode ? { 
+                season_number: currentEpisode.season_number, 
+                episode_number: currentEpisode.episode_number 
+              } : null} 
+            />
 
             {party && (
               <button
