@@ -198,6 +198,108 @@ function EmbedPlayer(props: EmbedPlayerProps) {
   const loadingRef = React.useRef<HTMLDivElement>(null);
   const iframeRef = React.useRef<HTMLIFrameElement>(null);
 
+  // Sync Logic
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sendMessage = (msg: any) => {
+    iframeRef.current?.contentWindow?.postMessage(msg, '*');
+  };
+
+  const lastUpdateRef = React.useRef(0);
+  const throttleUpdate = (callback: () => void, delay: number) => {
+    const now = Date.now();
+    if (now - lastUpdateRef.current >= delay) {
+      callback();
+      lastUpdateRef.current = now;
+    }
+  };
+
+  React.useEffect(() => {
+    if (!party) return;
+
+    // Listen for messages from iframe
+    const handleMessage = (e: MessageEvent) => {
+      // Security: In production, verify e.origin against expected domains
+      // For now, allow all as domains are dynamic from SERVERS list
+
+      // Log for debugging
+      // console.log('Player Message:', e.data);
+
+      if (isHost) {
+        // Host logic: Update DB based on player events
+        // Supported formats handling (generic)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
+        const data = e.data;
+        if (!data) return;
+
+        let currentTime: number | undefined;
+        let isPlaying: boolean | undefined;
+
+        // Try to parse common formats
+        // 1. { event: 'timeupdate', data: { time: 123 } }
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        if (data.event === 'timeupdate' && typeof data.data?.time === 'number') {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+          currentTime = data.data.time as number;
+        }
+        // 2. { type: 'timeupdate', currentTime: 123 }
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        else if (data.type === 'timeupdate' && typeof data.currentTime === 'number') {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+          currentTime = data.currentTime as number;
+        }
+        // 3. JWPlayer style: { event: 'time', position: 123 }
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        else if (data.event === 'time' && typeof data.position === 'number') {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+          currentTime = data.position as number;
+        }
+
+        // Play/Pause
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        if (data.event === 'play' || data.type === 'play') isPlaying = true;
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        if (data.event === 'pause' || data.type === 'pause') isPlaying = false;
+
+        if (currentTime !== undefined || isPlaying !== undefined) {
+          throttleUpdate(() => {
+            void WatchPartyService.updatePlaybackState(party.id, {
+              current_time_seconds: currentTime,
+              is_playing: isPlaying,
+            });
+          }, 2000); // Throttle to 2s
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [party, isHost]);
+
+  // Guest Sync Effect
+  React.useEffect(() => {
+    if (isHost || !party) return;
+
+    // Sync play/pause
+    if (party.is_playing !== undefined && party.is_playing !== null) {
+      sendMessage({ event: 'command', func: party.is_playing ? 'play' : 'pause' });
+      // Also try other formats
+      sendMessage({ type: party.is_playing ? 'play' : 'pause' });
+    }
+
+    // Sync time
+    if (party.current_time_seconds) {
+      // Seek if diff is large > 5s (to avoid jitter)
+      // Note: We don't have local time access easily without 2-way comms, 
+      // so we blindly send seek if it changed? No, that would loop.
+      // We assume if DB updated, it's significant.
+      
+      // Send seek command (generic)
+      sendMessage({ event: 'command', func: 'seek', args: [party.current_time_seconds] });
+      sendMessage({ type: 'seek', time: party.current_time_seconds });
+    }
+  }, [party?.current_time_seconds, party?.is_playing, isHost]);
+
+
   const handleChangeEpisode = (episode: IEpisode): void => {
     setCurrentEpisode(episode);
     if (isHost && party) {
