@@ -22,6 +22,9 @@ import { WatchPartyService } from '@/services/WatchPartyService';
 import ChatPanel from '../watch-party/chat-panel';
 import PartyControls from '../watch-party/controls';
 import CreatePartyModal from '../watch-party/create-modal';
+import type { Database } from '@/types/supabase';
+
+type WatchParty = Database['public']['Tables']['watch_parties']['Row'];
 
 interface EmbedPlayerProps {
   url?: string;
@@ -113,11 +116,13 @@ function EmbedPlayer(props: EmbedPlayerProps) {
 
     const initParty = async () => {
       try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const p = await WatchPartyService.joinParty(partyId);
-        setParty(p);
+        setParty(p as WatchParty);
 
         if (user) {
-          setIsHost(user.id === p.host_id);
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+          setIsHost(user.id === (p as any).host_id);
         } else {
           setIsHost(false);
         }
@@ -139,8 +144,10 @@ function EmbedPlayer(props: EmbedPlayerProps) {
           table: 'watch_parties',
           filter: `id=eq.${partyId}`,
         },
-        (payload) => {
-          const newParty = payload.new as any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (payload: any) => {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+          const newParty = payload.new as WatchParty;
           setParty(newParty);
         }
       )
@@ -165,18 +172,47 @@ function EmbedPlayer(props: EmbedPlayerProps) {
     }
   }, [partyId, user]);
 
+  // Sync Guest Playback
+  React.useEffect(() => {
+    if (!party || isHost || !seasons) return;
+
+    if (party.season_number && party.episode_number) {
+      if (
+        !currentEpisode ||
+        currentEpisode.season_number !== party.season_number ||
+        currentEpisode.episode_number !== party.episode_number
+      ) {
+        const season = seasons.find(
+          (s) => s.season_number === party.season_number,
+        );
+        const episode = season?.episodes.find(
+          (e) => e.episode_number === party.episode_number,
+        );
+        if (episode) {
+          setCurrentEpisode(episode);
+        }
+      }
+    }
+  }, [party, seasons, isHost, currentEpisode]);
+
   const loadingRef = React.useRef<HTMLDivElement>(null);
   const iframeRef = React.useRef<HTMLIFrameElement>(null);
 
   const handleChangeEpisode = (episode: IEpisode): void => {
     setCurrentEpisode(episode);
+    if (isHost && party) {
+      void WatchPartyService.updatePlaybackState(party.id, {
+        season_number: episode.season_number,
+        episode_number: episode.episode_number,
+      });
+    }
   };
 
   const updateContinueWatching = async () => {
     if (!user || !showData || !props.movieId) return;
 
     const title = getNameFromShow(showData);
-    const poster_path = showData.poster_path || showData.backdrop_path;
+    const poster_path = showData.poster_path ?? showData.backdrop_path;
     const id = props.movieId.replace('t-', '');
 
     const data = {
@@ -383,7 +419,7 @@ function EmbedPlayer(props: EmbedPlayerProps) {
             {party && (
               <button
                 onClick={() => {
-                  navigator.clipboard.writeText(window.location.href);
+                  void navigator.clipboard.writeText(window.location.href);
                   alert('Party link copied to clipboard!');
                 }}
                 className="glass-button p-2 px-4 rounded-full text-white bg-black/50 hover:bg-neon-cyan/20 flex items-center gap-2 text-sm"
