@@ -161,26 +161,6 @@ export default function AboutPage() {
             </div>
           </div>
 
-          {/* Tech Stack */}
-          <div className="py-8">
-            <h3 className="text-center text-xl font-semibold mb-8 text-white/80">Powered by Modern Tech</h3>
-            <div className="flex flex-wrap justify-center gap-8 md:gap-16 opacity-70 grayscale hover:grayscale-0 transition-all duration-500">
-              {[
-                { name: 'Next.js', icon: Icons.code },
-                { name: 'Tailwind', icon: Icons.palette },
-                { name: 'TMDb', icon: Icons.database },
-                { name: 'Vidsrc', icon: Icons.zap },
-              ].map((tech, i) => (
-                <div key={i} className="flex flex-col items-center gap-2 group cursor-default">
-                  <div className="p-3 rounded-full bg-white/5 group-hover:bg-white/10 transition-colors">
-                    <tech.icon className="h-8 w-8 text-white group-hover:scale-110 transition-transform" />
-                  </div>
-                  <span className="text-sm font-medium text-muted-foreground group-hover:text-white transition-colors">{tech.name}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
           {/* Footer */}
           <div className="text-center pt-12 border-t border-white/5">
             <p className="text-sm text-muted-foreground">
