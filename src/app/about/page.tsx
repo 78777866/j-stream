@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Icons } from '@/components/icons';
 import { siteConfig } from '@/configs/site';
+import { WebGLNeonBackdrop } from '@/components/about/webgl-neon-backdrop';
 import { useRouter } from 'next/navigation';
 
 export default function AboutPage() {
@@ -17,8 +18,14 @@ export default function AboutPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground relative overflow-hidden">
-      {/* Background Effects */}
-      <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
+      {/* WebGL Neon Backdrop */}
+      <div className="absolute inset-0 -z-10 pointer-events-none">
+        <WebGLNeonBackdrop className="h-full w-full opacity-80 mix-blend-screen" />
+        <div className="absolute inset-0 bg-gradient-to-b from-background/70 via-background/40 to-background/90" />
+      </div>
+
+      {/* Fallback Glow Layers */}
+      <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-20 pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-purple-600/20 blur-[120px]" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-blue-600/20 blur-[120px]" />
       </div>
