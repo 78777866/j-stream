@@ -4,6 +4,16 @@
 
 This document describes the migration that creates the `test_mcp` table for MCP (Model Context Protocol) integration testing and verification.
 
+**Project ID**: `zpuwfnuhrtxatgvtklpw`  
+**Dashboard URL**: https://app.supabase.com/project/zpuwfnuhrtxatgvtklpw
+
+## Current Status
+
+- ✅ Migration file created: `supabase/migrations/001_create_test_mcp_table.sql`
+- ✅ Verification scripts created: `scripts/verify-mcp-migration.js`
+- ⏳ **Action Required**: Apply migration to Supabase database (see instructions below)
+- ⏳ Verification pending (will pass once migration is applied)
+
 ## Migration File
 
 Location: `supabase/migrations/001_create_test_mcp_table.sql`
